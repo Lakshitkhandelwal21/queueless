@@ -54,12 +54,12 @@ app.get('/api/health', (req, res) => {
 const clientDistPath = path.join(__dirname, '../client/dist');
 app.use(express.static(clientDistPath));
 
-// SPA wildcard fallback for non-API GET requests
-app.get('*', (req, res, next) => {
-  if (req.path.startsWith('/api')) {
-    return next();
+// SPA fallback for non-API GET requests
+app.use((req, res, next) => {
+  if (req.method === 'GET' && !req.path.startsWith('/api')) {
+    return res.sendFile(path.join(clientDistPath, 'index.html'));
   }
-  res.sendFile(path.join(clientDistPath, 'index.html'));
+  next();
 });
 
 // Socket.IO event handlers
