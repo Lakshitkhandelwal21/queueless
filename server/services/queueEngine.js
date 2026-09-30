@@ -38,14 +38,16 @@ const calculatePositionAndETA = async (entryId) => {
     };
   }
 
+  const safePriority = typeof entry.priority === 'number' ? entry.priority : 0;
+
   // Count active entries ahead in the same session with higher priority or earlier join time
   const peopleAhead = await QueueEntry.countDocuments({
     sessionId: entry.sessionId,
     status: 'waiting',
     _id: { $ne: entry._id },
     $or: [
-      { priority: { $gt: entry.priority } },
-      { priority: entry.priority, joinedAt: { $lt: entry.joinedAt } },
+      { priority: { $gt: safePriority } },
+      { priority: safePriority, joinedAt: { $lt: entry.joinedAt || new Date() } },
     ],
   });
 
