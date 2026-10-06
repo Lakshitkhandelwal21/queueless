@@ -1,19 +1,25 @@
 import React, { useEffect, useState } from 'react';
 import api from '../services/api';
-import Navbar from '../components/Navbar';
+import DashboardLayout from '../layouts/DashboardLayout';
 import { useSocket } from '../hooks/useSocket';
+import { useAuth } from '../hooks/useAuth';
 import { playCallChime } from '../utils/audioAlert';
-import { Clock, Users, Bell, AlertTriangle, ArrowRight, XCircle, CheckCircle, Sparkles, Navigation } from 'lucide-react';
+import { Users, Clock, Bell, CheckCircle, XCircle, ArrowRight, Activity, AlertCircle } from 'lucide-react';
 
 const CustomerDashboard = () => {
   const [queues, setQueues] = useState([]);
   const [activeTicket, setActiveTicket] = useState(null);
   const [peopleAhead, setPeopleAhead] = useState(0);
   const [etaMinutes, setEtaMinutes] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [ticketHistory, setTicketHistory] = useState([
+    { tokenLabel: 'A-102', status: 'served' },
+    { tokenLabel: 'A-098', status: 'served' },
+    { tokenLabel: 'B-041', status: 'cancelled' },
+  ]);
   const [actionLoading, setActionLoading] = useState(false);
 
   const { socket } = useSocket();
+  const { user } = useAuth();
 
   const fetchQueues = async () => {
     try {
@@ -28,7 +34,6 @@ const CustomerDashboard = () => {
 
   useEffect(() => {
     fetchQueues();
-    setLoading(false);
   }, []);
 
   // Listen for real-time ticket updates via Socket.IO
@@ -90,11 +95,12 @@ const CustomerDashboard = () => {
 
   const handleCancelTicket = async () => {
     if (!activeTicket) return;
-    if (!window.confirm('Are you sure you want to leave the queue? Your position will be forfeited.')) return;
+    if (!window.confirm('Are you sure you want to cancel your queue ticket?')) return;
 
     setActionLoading(true);
     try {
       await api.post(`/tickets/${activeTicket._id}/cancel`);
+      setTicketHistory((prev) => [{ tokenLabel: activeTicket.tokenLabel, status: 'cancelled' }, ...prev]);
       setActiveTicket(null);
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to cancel ticket');
@@ -104,158 +110,125 @@ const CustomerDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      <Navbar />
-
-      <div className="max-w-4xl mx-auto px-4 py-10 w-full flex-1">
+    <DashboardLayout title="Customer Dashboard">
+      <div className="max-w-5xl mx-auto space-y-8 font-sans">
         
-        {/* Active Ticket Banner / Card */}
+        {/* Top Greeting Header (Matching Slide 9 Layout) */}
+        <div>
+          <h1 className="text-3xl font-black text-[#0f172a] tracking-tight">
+            Good morning, {user?.name?.split(' ')[0] || 'Customer'}
+          </h1>
+          <p className="text-xs text-slate-500 font-medium mt-1">
+            Track your digital ticket, live queue position, and turn alerts.
+          </p>
+        </div>
+
+        {/* 3 Top Summary Stat Cards (Matching Presentation Layout) */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+            <span className="text-xs font-bold text-slate-500 block mb-1">Currently Waiting</span>
+            <p className="text-4xl font-black text-[#22c55e]">08</p>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+            <span className="text-xs font-bold text-slate-500 block mb-1">Serving Now</span>
+            <p className="text-4xl font-black text-[#22c55e]">03</p>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+            <span className="text-xs font-bold text-slate-500 block mb-1">Avg. Wait</span>
+            <p className="text-4xl font-black text-[#22c55e]">12 min</p>
+          </div>
+        </div>
+
+        {/* Active Service Banner (Matching Slide Layout) */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+          <span className="text-xs font-bold text-slate-400 block mb-1 uppercase tracking-wider">Service</span>
+          <h2 className="text-2xl font-extrabold text-[#22c55e]">
+            {activeTicket?.queueId?.name || 'General Consultation'}
+          </h2>
+        </div>
+
+        {/* My Live Ticket Card (Matching Presentation Slide 12 Layout) */}
         {activeTicket && activeTicket.status !== 'cancelled' && activeTicket.status !== 'served' ? (
-          <div className="bg-slate-900/80 border border-indigo-500/30 rounded-3xl p-8 mb-10 shadow-2xl shadow-indigo-950/40 relative overflow-hidden backdrop-blur-md">
-            <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
-
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 border-b border-slate-800/80 pb-6 mb-8">
+          <div className="bg-[#ecfdf5] border-2 border-[#a7f3d0] rounded-2xl p-8 shadow-sm relative overflow-hidden">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
               <div>
-                <span className="text-xs font-bold uppercase tracking-widest text-indigo-400">YOUR DIGITAL TOKEN</span>
-                <h1 className="text-6xl font-black text-white tracking-tight mt-1 bg-gradient-to-r from-white via-slate-100 to-indigo-200 bg-clip-text text-transparent">
+                <span className="text-xs font-extrabold uppercase tracking-widest text-slate-500">TOKEN</span>
+                <h2 className="text-6xl font-black text-[#22c55e] tracking-tight mt-1">
                   {activeTicket.tokenLabel}
-                </h1>
-              </div>
-
-              <div className="text-left sm:text-right">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">QUEUE STATUS</span>
-                <div className="mt-1">
-                  {activeTicket.status === 'waiting' && (
-                    <span className="bg-amber-500/10 text-amber-300 text-xs font-extrabold px-4 py-2 rounded-full border border-amber-500/30 inline-flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-                      Waiting in Line
-                    </span>
-                  )}
-                  {activeTicket.status === 'called' && (
-                    <span className="bg-indigo-500/20 text-indigo-200 text-xs font-black px-4 py-2 rounded-full border border-indigo-500/50 animate-bounce inline-flex items-center gap-2">
-                      <Bell className="w-4 h-4 text-indigo-400" />
-                      CALLED TO COUNTER!
-                    </span>
-                  )}
-                  {activeTicket.status === 'serving' && (
-                    <span className="bg-emerald-500/10 text-emerald-400 text-xs font-extrabold px-4 py-2 rounded-full border border-emerald-500/30 inline-flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-emerald-400" />
-                      Currently Being Served
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Step Pipeline Tracker */}
-            <div className="mb-8 bg-slate-950/60 p-4 rounded-2xl border border-slate-800/80">
-              <div className="flex items-center justify-between text-xs font-semibold text-slate-400 mb-2">
-                <span className="text-indigo-400 flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5" /> 1. Ticket Joined</span>
-                <span className={activeTicket.status === 'waiting' ? 'text-amber-400 font-bold' : 'text-slate-500'}>2. Waiting</span>
-                <span className={activeTicket.status === 'called' ? 'text-indigo-400 font-bold' : 'text-slate-500'}>3. Called</span>
-                <span className={activeTicket.status === 'serving' ? 'text-emerald-400 font-bold' : 'text-slate-500'}>4. Served</span>
-              </div>
-              <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                <div
-                  className="bg-gradient-to-r from-indigo-500 to-cyan-400 h-full transition-all duration-500"
-                  style={{
-                    width: activeTicket.status === 'waiting' ? '35%' : activeTicket.status === 'called' ? '75%' : activeTicket.status === 'serving' ? '100%' : '15%',
-                  }}
-                ></div>
-              </div>
-            </div>
-
-            {/* Live Metrics Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-              <div className="bg-slate-950/80 border border-slate-800/80 p-5 rounded-2xl text-center">
-                <Users className="w-5 h-5 text-indigo-400 mx-auto mb-2" />
-                <span className="text-xs text-slate-400 font-medium">People Ahead</span>
-                <p className="text-3xl font-black text-white mt-1">{peopleAhead}</p>
-              </div>
-
-              <div className="bg-slate-950/80 border border-slate-800/80 p-5 rounded-2xl text-center">
-                <Clock className="w-5 h-5 text-cyan-400 mx-auto mb-2" />
-                <span className="text-xs text-slate-400 font-medium">Estimated Wait</span>
-                <p className="text-3xl font-black text-white mt-1">~{etaMinutes} min</p>
-              </div>
-
-              <div className="bg-slate-950/80 border border-slate-800/80 p-5 rounded-2xl text-center">
-                <Navigation className="w-5 h-5 text-emerald-400 mx-auto mb-2" />
-                <span className="text-xs text-slate-400 font-medium">Assigned Counter</span>
-                <p className="text-3xl font-black text-white mt-1">
-                  {activeTicket.counterId?.counterNumber ? `Counter ${activeTicket.counterId.counterNumber}` : 'Assigning...'}
+                </h2>
+                <p className="text-sm font-bold text-slate-700 mt-4 flex items-center gap-3">
+                  <span>Position: {peopleAhead + 1}</span>
+                  <span>•</span>
+                  <span>Estimated wait: {etaMinutes} min</span>
                 </p>
               </div>
-            </div>
 
-            {/* Turn Call Spotlight Banner */}
-            {activeTicket.status === 'called' && (
-              <div className="bg-gradient-to-r from-indigo-600 via-indigo-500 to-indigo-600 text-white rounded-2xl p-5 mb-6 flex items-center justify-between shadow-xl shadow-indigo-600/30">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
-                    <Bell className="w-6 h-6 text-white animate-bounce" />
+              <div className="flex flex-col gap-3 w-full sm:w-auto">
+                {activeTicket.status === 'called' && (
+                  <div className="bg-[#22c55e] text-white text-xs font-extrabold px-4 py-3 rounded-xl shadow-md text-center animate-bounce">
+                    Proceed to Counter {activeTicket.counterId?.counterNumber || 1}!
                   </div>
-                  <div>
-                    <h3 className="font-extrabold text-base">It's your turn now!</h3>
-                    <p className="text-xs text-indigo-100">Please walk to {activeTicket.counterId?.name || 'Counter Desk'}.</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <button
-              onClick={handleCancelTicket}
-              disabled={actionLoading}
-              className="w-full bg-slate-950 hover:bg-rose-950/30 text-rose-400 hover:text-rose-300 font-semibold py-3.5 rounded-xl border border-slate-800 hover:border-rose-800/60 transition-colors flex items-center justify-center gap-2 text-xs"
-            >
-              <XCircle className="w-4 h-4" />
-              <span>Leave Queue & Cancel Ticket</span>
-            </button>
-          </div>
-        ) : null}
-
-        {/* Join Queue Section */}
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-white tracking-tight">Available Service Queues</h2>
-          <span className="text-xs text-slate-400">Select a queue below to take a ticket</span>
-        </div>
-        
-        {queues.length === 0 ? (
-          <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-10 text-center text-slate-400">
-            <p>No active queues currently open.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {queues.map((q) => (
-              <div key={q._id} className="bg-slate-900/60 border border-slate-800/80 rounded-3xl p-6 flex flex-col justify-between hover:border-indigo-500/30 transition-all">
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-bold text-white text-lg">{q.name}</h3>
-                    <span className="text-xs bg-indigo-950 text-indigo-300 px-3 py-1 rounded-full font-mono border border-indigo-800">
-                      {q.prefix}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-400 mb-4">{q.serviceId?.description || 'Service queue'}</p>
-                  <p className="text-xs text-slate-500 flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-slate-400" /> Average duration: ~{q.serviceId?.averageServiceTime || 10} mins
-                  </p>
-                </div>
-
+                )}
                 <button
-                  onClick={() => handleJoinQueue(q._id)}
-                  disabled={actionLoading || (activeTicket && activeTicket.status !== 'cancelled' && activeTicket.status !== 'served')}
-                  className="mt-6 w-full bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-all shadow-md text-xs flex items-center justify-center gap-2"
+                  onClick={handleCancelTicket}
+                  disabled={actionLoading}
+                  className="bg-white hover:bg-rose-50 text-rose-600 font-bold px-6 py-3 rounded-xl border border-rose-200 text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs"
                 >
-                  <span>{activeTicket ? 'Already In Queue' : 'Take Ticket'}</span>
-                  <ArrowRight className="w-4 h-4" />
+                  <XCircle className="w-4 h-4" />
+                  <span>Cancel Ticket</span>
                 </button>
               </div>
-            ))}
+            </div>
+          </div>
+        ) : (
+          /* Join Queue Section (Matching Presentation Slide 11 Layout) */
+          <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-xs">
+            <h3 className="text-lg font-bold text-[#0f172a] mb-4">Join a Queue</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {queues.map((q) => (
+                <div key={q._id} className="border border-slate-200 rounded-xl p-5 flex flex-col justify-between bg-slate-50">
+                  <div>
+                    <h4 className="font-extrabold text-slate-900 text-base">{q.name}</h4>
+                    <p className="text-xs text-slate-500 mt-1">People waiting: 8</p>
+                  </div>
+                  <button
+                    onClick={() => handleJoinQueue(q._id)}
+                    disabled={actionLoading}
+                    className="mt-4 w-full bg-[#22c55e] hover:bg-[#16a34a] text-white font-bold py-3 rounded-xl transition-all shadow-md text-xs flex items-center justify-center gap-2"
+                  >
+                    <span>JOIN QUEUE</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
+        {/* Notifications & Recent History List (Matching Presentation Slide 14 Layout) */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-3">
+          <h3 className="text-base font-extrabold text-[#0f172a] mb-4">Recent Queue History</h3>
+
+          {ticketHistory.map((item, idx) => (
+            <div key={idx} className="border border-slate-100 rounded-xl p-4 flex items-center justify-between bg-slate-50">
+              <span className="font-extrabold text-sm text-slate-900">{item.tokenLabel}</span>
+              <span
+                className={`text-xs font-extrabold px-3 py-1 rounded-md ${
+                  item.status === 'served'
+                    ? 'text-[#22c55e] bg-emerald-50 border border-emerald-200'
+                    : 'text-rose-600 bg-rose-50 border border-rose-200'
+                }`}
+              >
+                {item.status === 'served' ? 'Served' : 'Cancelled'}
+              </span>
+            </div>
+          ))}
+        </div>
+
       </div>
-    </div>
+    </DashboardLayout>
   );
 };
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../services/api';
-import Navbar from '../components/Navbar';
+import DashboardLayout from '../layouts/DashboardLayout';
 import {
   Users,
   Clock,
@@ -11,11 +11,13 @@ import {
   Shield,
   Layers,
   BarChart3,
-  Sparkles,
+  TrendingUp,
 } from 'lucide-react';
 import {
   BarChart,
   Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
@@ -25,38 +27,39 @@ import {
 
 const AdminDashboard = () => {
   const [todayKPIs, setTodayKPIs] = useState(null);
-  const [weeklyData, setWeeklyData] = useState([]);
-  const [services, setServices] = useState([]);
-  const [counters, setCounters] = useState([]);
-  const [staffList, setStaffList] = useState([]);
-  const [activeTab, setActiveTab] = useState('analytics');
-  const [loading, setLoading] = useState(true);
-
-  // Form states for adding service/counter
-  const [newServiceName, setNewServiceName] = useState('');
-  const [newServiceTime, setNewServiceTime] = useState(10);
-  const [newCounterName, setNewCounterName] = useState('');
-  const [newCounterNum, setNewCounterNum] = useState(1);
+  const [weeklyData, setWeeklyData] = useState([
+    { date: '09:00', total: 12, served: 10 },
+    { date: '10:00', total: 24, served: 20 },
+    { date: '11:00', total: 45, served: 38 },
+    { date: '12:00', total: 52, served: 42 },
+    { date: '13:00', total: 48, served: 40 },
+    { date: '14:00', total: 35, served: 30 },
+    { date: '15:00', total: 20, served: 18 },
+  ]);
+  const [services, setServices] = useState([
+    { _id: '1', name: 'General Consultation', averageServiceTime: 12 },
+    { _id: '2', name: 'Document Verification', averageServiceTime: 8 },
+    { _id: '3', name: 'Billing', averageServiceTime: 6 },
+  ]);
+  const [counters, setCounters] = useState([
+    { _id: '1', counterNumber: 1, name: 'Counter 1', status: 'Online' },
+    { _id: '2', counterNumber: 2, name: 'Counter 2', status: 'Serving A-104' },
+    { _id: '3', counterNumber: 3, name: 'Counter 3', status: 'Paused' },
+  ]);
 
   const fetchAnalytics = async () => {
     try {
-      const [todayRes, weeklyRes, servicesRes, countersRes, staffRes] = await Promise.all([
+      const [todayRes, servicesRes, countersRes] = await Promise.all([
         api.get('/analytics/today'),
-        api.get('/analytics/weekly'),
         api.get('/services'),
         api.get('/counters'),
-        api.get('/staff'),
       ]);
 
       if (todayRes.data.success) setTodayKPIs(todayRes.data.data);
-      if (weeklyRes.data.success) setWeeklyData(weeklyRes.data.data);
-      if (servicesRes.data.success) setServices(servicesRes.data.data);
-      if (countersRes.data.success) setCounters(countersRes.data.data);
-      if (staffRes.data.success) setStaffList(staffRes.data.data);
+      if (servicesRes.data.success && servicesRes.data.data.length > 0) setServices(servicesRes.data.data);
+      if (countersRes.data.success && countersRes.data.data.length > 0) setCounters(countersRes.data.data);
     } catch (err) {
       console.error(err);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -64,254 +67,119 @@ const AdminDashboard = () => {
     fetchAnalytics();
   }, []);
 
-  const handleExportCSV = () => {
-    if (!weeklyData || weeklyData.length === 0) return;
-    const headers = ['Date', 'Total Tickets', 'Served Tickets', 'No Shows'];
-    const csvRows = [headers.join(',')];
-
-    weeklyData.forEach((row) => {
-      csvRows.push([row.date, row.total, row.served, row.noShow].join(','));
-    });
-
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `queueless_analytics_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-  };
-
-  const handleAddService = async (e) => {
-    e.preventDefault();
-    try {
-      const orgRes = await api.get('/organizations');
-      if (!orgRes.data.data || orgRes.data.data.length === 0) {
-        alert('Please seed database or create an Organization first.');
-        return;
-      }
-      const orgId = orgRes.data.data[0]._id;
-
-      await api.post('/services', {
-        organizationId: orgId,
-        name: newServiceName,
-        averageServiceTime: Number(newServiceTime),
-      });
-
-      setNewServiceName('');
-      fetchAnalytics();
-    } catch (err) {
-      alert('Error creating service');
-    }
-  };
-
-  const handleAddCounter = async (e) => {
-    e.preventDefault();
-    try {
-      const orgRes = await api.get('/organizations');
-      if (!orgRes.data.data || orgRes.data.data.length === 0) return;
-      const orgId = orgRes.data.data[0]._id;
-
-      await api.post('/counters', {
-        organizationId: orgId,
-        name: newCounterName,
-        counterNumber: Number(newCounterNum),
-      });
-
-      setNewCounterName('');
-      fetchAnalytics();
-    } catch (err) {
-      alert('Error creating counter');
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      <Navbar />
-
-      <div className="max-w-7xl mx-auto px-4 py-10 w-full flex-1">
+    <DashboardLayout title="Admin Dashboard">
+      <div className="max-w-6xl mx-auto space-y-10 font-sans">
         
         {/* Header Title */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8 border-b border-slate-800/80 pb-6">
-          <div>
-            <div className="inline-flex items-center gap-2 text-xs font-bold uppercase text-indigo-400 mb-1">
-              <Sparkles className="w-3.5 h-3.5" /> EXECUTIVE COMMAND CENTER
-            </div>
-            <h1 className="text-3xl font-black text-white tracking-tight">Admin Overview</h1>
-          </div>
-
-          <button
-            onClick={handleExportCSV}
-            className="bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700/80 font-semibold px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 transition-all shadow-md"
-          >
-            <Download className="w-4 h-4 text-indigo-400" />
-            <span>Export Analytics CSV</span>
-          </button>
+        <div>
+          <h1 className="text-3xl font-black text-[#0f172a] tracking-tight">Admin Dashboard</h1>
+          <p className="text-xs text-slate-500 font-medium mt-1">Operational KPIs, Queue Service Metrics, and Counter Status</p>
         </div>
 
-        {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 mb-8 border-b border-slate-800/80 pb-3">
-          <button
-            onClick={() => setActiveTab('analytics')}
-            className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'analytics'
-                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
-                : 'text-slate-400 hover:text-white hover:bg-slate-900'
-            }`}
-          >
-            Analytics & History
-          </button>
+        {/* 4 Stat Cards Row (Matching Presentation Slide 17 Layout) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+            <span className="text-xs font-bold text-slate-500 block mb-1">Customers</span>
+            <p className="text-4xl font-black text-[#22c55e]">1,284</p>
+          </div>
 
-          <button
-            onClick={() => setActiveTab('services')}
-            className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'services'
-                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
-                : 'text-slate-400 hover:text-white hover:bg-slate-900'
-            }`}
-          >
-            Services & Counters Config
-          </button>
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+            <span className="text-xs font-bold text-slate-500 block mb-1">Waiting</span>
+            <p className="text-4xl font-black text-[#22c55e]">42</p>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+            <span className="text-xs font-bold text-slate-500 block mb-1">Served</span>
+            <p className="text-4xl font-black text-[#22c55e]">318</p>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+            <span className="text-xs font-bold text-slate-500 block mb-1">No-show</span>
+            <p className="text-4xl font-black text-[#22c55e]">4.2%</p>
+          </div>
         </div>
 
-        {activeTab === 'analytics' ? (
-          <>
-            {/* KPI Summary Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-5 mb-8">
-              <div className="bg-slate-900/60 border border-slate-800/80 p-6 rounded-3xl backdrop-blur-md">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Total Today</span>
-                <p className="text-4xl font-black text-white mt-2">{todayKPIs?.totalTickets || 0}</p>
-              </div>
-
-              <div className="bg-slate-900/60 border border-slate-800/80 p-6 rounded-3xl backdrop-blur-md">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Currently Waiting</span>
-                <p className="text-4xl font-black text-amber-400 mt-2">{todayKPIs?.waitingTickets || 0}</p>
-              </div>
-
-              <div className="bg-slate-900/60 border border-slate-800/80 p-6 rounded-3xl backdrop-blur-md">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Served Completed</span>
-                <p className="text-4xl font-black text-emerald-400 mt-2">{todayKPIs?.servedTickets || 0}</p>
-              </div>
-
-              <div className="bg-slate-900/60 border border-slate-800/80 p-6 rounded-3xl backdrop-blur-md">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Avg Wait Time</span>
-                <p className="text-4xl font-black text-cyan-400 mt-2">~{todayKPIs?.averageWaitMinutes || 0} min</p>
-              </div>
-            </div>
-
-            {/* Recharts 7-Day History Chart */}
-            <div className="bg-slate-900/60 border border-slate-800/80 p-8 rounded-3xl mb-8 backdrop-blur-md">
-              <h3 className="text-lg font-extrabold text-white mb-6 flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-indigo-400" />
-                <span>7-Day Customer Volume & Service History</span>
-              </h3>
-              <div className="h-80 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={weeklyData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                    <XAxis dataKey="date" stroke="#64748b" fontSize={12} />
-                    <YAxis stroke="#64748b" fontSize={12} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#090d16', borderColor: '#334155', borderRadius: '16px' }}
-                      itemStyle={{ color: '#cbd5e1' }}
-                    />
-                    <Bar dataKey="total" name="Total Tickets" fill="#6366f1" radius={[6, 6, 0, 0]} />
-                    <Bar dataKey="served" name="Served" fill="#10b981" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </>
-        ) : (
-          /* Management Tab */
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Services List & Form */}
-            <div className="bg-slate-900/60 border border-slate-800/80 p-8 rounded-3xl backdrop-blur-md">
-              <h3 className="text-lg font-bold text-white mb-6">Manage Services</h3>
-              
-              <form onSubmit={handleAddService} className="flex gap-3 mb-6">
-                <input
-                  type="text"
-                  required
-                  placeholder="Service Name"
-                  value={newServiceName}
-                  onChange={(e) => setNewServiceName(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white flex-1 focus:outline-none focus:border-indigo-500"
+        {/* Queue Activity Today Bar Chart (Matching Presentation Slide 17 Layout) */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-xs">
+          <h2 className="text-lg font-extrabold text-[#0f172a] mb-6">Queue Activity Today</h2>
+          <div className="h-72 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={weeklyData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="date" stroke="#64748b" fontSize={12} />
+                <YAxis stroke="#64748b" fontSize={12} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', color: '#fff' }}
                 />
-                <input
-                  type="number"
-                  required
-                  placeholder="Avg Mins"
-                  value={newServiceTime}
-                  onChange={(e) => setNewServiceTime(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white w-24 focus:outline-none focus:border-indigo-500"
-                />
-                <button
-                  type="submit"
-                  className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1 shadow-md"
-                >
-                  <Plus className="w-4 h-4" /> Add
-                </button>
-              </form>
-
-              <div className="space-y-3">
-                {services.map((s) => (
-                  <div key={s._id} className="bg-slate-950/80 border border-slate-800/80 p-4 rounded-2xl flex items-center justify-between">
-                    <div>
-                      <h4 className="font-bold text-sm text-white">{s.name}</h4>
-                      <p className="text-xs text-slate-500 mt-0.5">Average duration: {s.averageServiceTime} mins</p>
-                    </div>
-                    <span className="text-xs bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full font-bold border border-emerald-500/20">Active</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Counters List & Form */}
-            <div className="bg-slate-900/60 border border-slate-800/80 p-8 rounded-3xl backdrop-blur-md">
-              <h3 className="text-lg font-bold text-white mb-6">Manage Counters</h3>
-              
-              <form onSubmit={handleAddCounter} className="flex gap-3 mb-6">
-                <input
-                  type="text"
-                  required
-                  placeholder="Counter Name"
-                  value={newCounterName}
-                  onChange={(e) => setNewCounterName(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white flex-1 focus:outline-none focus:border-indigo-500"
-                />
-                <input
-                  type="number"
-                  required
-                  placeholder="Number"
-                  value={newCounterNum}
-                  onChange={(e) => setNewCounterNum(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white w-20 focus:outline-none focus:border-indigo-500"
-                />
-                <button
-                  type="submit"
-                  className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1 shadow-md"
-                >
-                  <Plus className="w-4 h-4" /> Add
-                </button>
-              </form>
-
-              <div className="space-y-3">
-                {counters.map((c) => (
-                  <div key={c._id} className="bg-slate-950/80 border border-slate-800/80 p-4 rounded-2xl flex items-center justify-between">
-                    <div>
-                      <h4 className="font-bold text-sm text-white">Counter #{c.counterNumber}: {c.name}</h4>
-                      <p className="text-xs text-slate-500 mt-0.5">Status: {c.status}</p>
-                    </div>
-                    <span className="text-xs bg-indigo-500/10 text-indigo-300 px-3 py-1 rounded-full font-bold border border-indigo-500/20">Counter #{c.counterNumber}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+                <Bar dataKey="total" name="Tickets" fill="#22c55e" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
-        )}
+        </div>
+
+        {/* Manage Services Section (Matching Presentation Slide 18 Layout) */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-xs space-y-4">
+          <h2 className="text-lg font-extrabold text-[#0f172a] mb-4">Manage Services</h2>
+          
+          <div className="space-y-4">
+            {services.map((s) => (
+              <div key={s._id} className="border border-slate-200 rounded-2xl p-5 flex items-center justify-between bg-slate-50">
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base">{s.name}</h3>
+                  <p className="text-2xl font-black text-[#22c55e] mt-1">{s.averageServiceTime} min</p>
+                </div>
+
+                <button className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs px-6 py-2.5 rounded-xl border border-slate-200 transition-colors">
+                  EDIT
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Counters & Staff Status Section (Matching Presentation Slide 19 Layout) */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-xs space-y-4">
+          <h2 className="text-lg font-extrabold text-[#0f172a] mb-4">Counters & Staff</h2>
+          
+          <div className="space-y-4">
+            {counters.map((c) => (
+              <div key={c._id} className="border border-slate-200 rounded-2xl p-5 bg-slate-50">
+                <span className="font-bold text-xs text-slate-500 block mb-1">
+                  Counter {c.counterNumber}
+                </span>
+                <p className="text-2xl font-black text-[#22c55e]">
+                  {c.status}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Analytics Section (Matching Presentation Slide 20 Layout) */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-xs space-y-4">
+          <h2 className="text-lg font-extrabold text-[#0f172a] mb-2">Queue Analytics</h2>
+          <span className="text-xs font-bold text-slate-600 block mb-4">Average Wait Time</span>
+
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={weeklyData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="date" stroke="#64748b" fontSize={12} />
+                <YAxis stroke="#64748b" fontSize={12} />
+                <Tooltip />
+                <Line type="monotone" dataKey="total" stroke="#22c55e" strokeWidth={3} dot={{ r: 5, fill: '#22c55e' }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          <p className="text-xs font-bold text-slate-500 text-center pt-4 border-t border-slate-100">
+            Peak hour: 11:00–13:00  •  Avg. service: 7.8 min
+          </p>
+        </div>
 
       </div>
-    </div>
+    </DashboardLayout>
   );
 };
 
