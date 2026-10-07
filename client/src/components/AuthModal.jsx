@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { X, User, Mail, Lock, Phone } from 'lucide-react';
+import { X, User, Mail, Lock, Shield, LayoutDashboard, UserCheck } from 'lucide-react';
 
 const AuthModal = ({ isOpen, onClose, initialTab = 'login', onSuccess }) => {
   const [activeTab, setActiveTab] = useState(initialTab); // 'login' | 'register'
@@ -13,8 +14,25 @@ const AuthModal = ({ isOpen, onClose, initialTab = 'login', onSuccess }) => {
   const [loading, setLoading] = useState(false);
 
   const { login, register } = useAuth();
+  const navigate = useNavigate();
 
   if (!isOpen) return null;
+
+  const handleDemoLogin = async (demoEmail, demoPassword, targetRole) => {
+    setError('');
+    setLoading(true);
+    try {
+      const data = await login(demoEmail, demoPassword);
+      onClose();
+      if (targetRole === 'admin') navigate('/admin');
+      else if (targetRole === 'staff') navigate('/staff');
+      else navigate('/customer');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Demo login failed. Make sure DB is seeded.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -22,15 +40,23 @@ const AuthModal = ({ isOpen, onClose, initialTab = 'login', onSuccess }) => {
     setLoading(true);
 
     try {
+      let data;
       if (activeTab === 'login') {
-        await login(email, password);
+        data = await login(email, password);
       } else {
-        await register({ name, email, phone, password, role });
+        data = await register({ name, email, phone, password, role });
       }
-      if (onSuccess) onSuccess();
+
       onClose();
+      if (onSuccess) onSuccess();
+
+      if (data && data.user) {
+        if (data.user.role === 'admin') navigate('/admin');
+        else if (data.user.role === 'staff') navigate('/staff');
+        else navigate('/customer');
+      }
     } catch (err) {
-      setError(err.response?.data?.message || 'Authentication failed. Please try again.');
+      setError(err.response?.data?.message || 'Authentication failed. Please check credentials.');
     } finally {
       setLoading(false);
     }
@@ -81,6 +107,38 @@ const AuthModal = ({ isOpen, onClose, initialTab = 'login', onSuccess }) => {
             </div>
           )}
 
+          {/* Quick Demo Login Buttons */}
+          {activeTab === 'login' && (
+            <div className="mb-4 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+              <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider block text-center">
+                ⚡ Quick 1-Click Demo Logins
+              </span>
+              <div className="grid grid-cols-3 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleDemoLogin('customer@queueless.com', 'customer123', 'customer')}
+                  className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 font-extrabold text-[10px] py-1.5 px-2 rounded-lg transition-all text-center"
+                >
+                  Customer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDemoLogin('staff@queueless.com', 'staff123', 'staff')}
+                  className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-300 font-extrabold text-[10px] py-1.5 px-2 rounded-lg transition-all text-center"
+                >
+                  Staff
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDemoLogin('admin@queueless.com', 'admin123', 'admin')}
+                  className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-[10px] py-1.5 px-2 rounded-lg transition-all text-center"
+                >
+                  Admin
+                </button>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'register' && (
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
@@ -106,7 +164,7 @@ const AuthModal = ({ isOpen, onClose, initialTab = 'login', onSuccess }) => {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="e.g. user@example.com"
+              placeholder="e.g. customer@queueless.com"
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#161f2e] focus:bg-white transition-all font-medium"
             />
           </div>
